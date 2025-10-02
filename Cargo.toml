@@ -1,0 +1,17 @@
+[package]
+name = "imgui-opengl-renderer-rs"
+description = "OpenGL Renderer for imgui-glfw-rs"
+version = "0.5.0"
+authors = ["Stephan Schauerte <stephan.schauerte@gmail.com>"]
+build = "build.rs"
+homepage = "https://github.com/k4ugummi/imgui-opengl-renderer-rs"
+repository = "https://github.com/k4ugummi/imgui-opengl-renderer-rs"
+readme = "README.md"
+categories = ["gui", "rendering::graphics-api"]
+license = "MIT/Apache-2.0"
+
+[dependencies]
+imgui = ">=0.9.0, <0.13.0"
+
+[build-dependencies]
+gl_generator = "0.14.0"
