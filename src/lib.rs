@@ -1,3 +1,32 @@
+//! OpenGL 3.3+ renderer for [Dear ImGui](https://github.com/ocornut/imgui)
+//! via the [`imgui`](https://docs.rs/imgui) crate.
+//!
+//! This crate provides a [`Renderer`] that compiles GLSL shaders, manages GPU
+//! resources (buffers, textures, VAO), and converts imgui draw commands into
+//! OpenGL draw calls. All OpenGL state is saved before rendering and restored
+//! afterwards, so the renderer can be dropped into an existing GL pipeline
+//! without side effects.
+//!
+//! Pair this crate with
+//! [`imgui-glfw-rs`](https://crates.io/crates/imgui-glfw-rs) for a complete
+//! GLFW + OpenGL + Dear ImGui integration.
+//!
+//! # Example
+//!
+//! ```no_run
+//! use imgui::Context;
+//! use imgui_opengl_renderer_rs::Renderer;
+//!
+//! let mut imgui = Context::create();
+//! // `window` is your GLFW or other OpenGL window
+//! # let window: &glfw::Window = unimplemented!();
+//! let renderer = Renderer::new(&mut imgui, |s| window.get_proc_address(s) as _)
+//!     .expect("Failed to initialize renderer");
+//!
+//! // In your main loop:
+//! renderer.render(&mut imgui);
+//! ```
+
 use imgui::Context;
 use memoffset::offset_of;
 use std::ffi::CStr;
@@ -18,9 +47,12 @@ mod gl {
 
 use gl::types::*;
 
+/// Errors that can occur during [`Renderer`] initialization.
 #[derive(Debug)]
 pub enum RendererError {
+    /// A GLSL shader failed to compile. Contains the driver's info log.
     ShaderCompilation(String),
+    /// The shader program failed to link. Contains the driver's info log.
     ProgramLinking(String),
 }
 
@@ -35,6 +67,14 @@ impl fmt::Display for RendererError {
 
 impl std::error::Error for RendererError {}
 
+/// An OpenGL 3.3 renderer for Dear ImGui.
+///
+/// Manages a compiled shader program, vertex/index buffers, a VAO, and the
+/// font texture atlas. Saves and restores all modified OpenGL state around
+/// each [`render`](Self::render) call.
+///
+/// Dropped resources (buffers, program, textures) are cleaned up automatically
+/// via the [`Drop`] implementation.
 pub struct Renderer {
     gl: gl::Gl,
     program: GLuint,
@@ -54,6 +94,16 @@ struct Locs {
 }
 
 impl Renderer {
+    /// Creates a new renderer, compiling shaders and building the font atlas.
+    ///
+    /// `load_fn` is used to load OpenGL function pointers. With GLFW this is
+    /// typically `|s| window.get_proc_address(s) as _`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RendererError::ShaderCompilation`] if a GLSL shader fails to
+    /// compile, or [`RendererError::ProgramLinking`] if the program fails to
+    /// link. Both variants contain the driver's info log.
     pub fn new<F>(imgui: &mut Context, load_fn: F) -> Result<Self, RendererError>
     where
         F: FnMut(&'static str) -> *const ::std::os::raw::c_void,
@@ -167,6 +217,11 @@ impl Renderer {
         }
     }
 
+    /// Renders the current imgui frame.
+    ///
+    /// Calls [`Context::render`] internally to obtain draw data, then issues
+    /// the corresponding OpenGL draw calls. All OpenGL state modified during
+    /// rendering is saved beforehand and restored afterwards.
     pub fn render(&self, ctx: &mut Context) {
         use imgui::{DrawCmd, DrawCmdParams, DrawIdx, DrawVert};
 
